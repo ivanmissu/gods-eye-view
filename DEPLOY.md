@@ -1,11 +1,58 @@
 # Deploying God's Eye View
 
 This app **cannot** run on GitHub Pages, Netlify's static tier, or any other
-static host. About 25 API endpoints (the CCTV frame proxy, flights, satellites,
-geocoding, weather, radio) live in the Vite server. Without Node running, the
-globe loads and every data layer 404s.
+purely static host. About 25 API endpoints (the CCTV frame proxy, flights,
+satellites, geocoding, weather, radio) live in the Vite server. Without Node
+running, the globe loads and every data layer 404s.
 
-It needs a host that runs Node 24.14.x or 26.x.
+A full-Node host (Node 24.14.x or 26.x) or a serverless platform that can run
+the API middlewares as functions (Vercel — see below) works.
+
+## One-click: Vercel (serverless functions)
+
+The API middlewares are extracted from the Vite config into
+`src/server/gev-endpoints.mjs` (no Vite imports), so they can be mounted on
+Vercel serverless functions without a long-lived Node process:
+
+- `api/[...gev].mjs` — Vercel catch-all entry for every `/api/*` route.
+- `src/server/gev-vercel-adapter.mjs` — replays the plugin registration and
+  dispatches requests through the same Connect chain the dev server uses,
+  bridging Vercel's pre-parsed request body back into a raw stream.
+- `src/server/gev-runtime-patch.mjs` — serverless runtime prep: a writable
+  temp mirror for the `.gev-cache`/`.gev-logs`/`data`/`config` segments, a
+  `process.cwd()` remap, and a vendored `ws` loader (the optional dev
+  dependency is not in the function bundle).
+- `src/server/embedded-data.mjs` — shipped data files (CCTV registries,
+  compiled datasets, CelesTrak TLE seeds) embedded in the bundle, regenerated
+  with `node scripts/embed-server-data.mjs` when they change.
+- `vercel.json` — Node 22 function runtime, install/build commands, SPA
+  rewrites.
+
+Deploy:
+
+1. In Vercel, import this repository (GitHub integration) or run
+   `npx vercel` from a checkout.
+2. Set `GOOGLE_MAPS_API_KEY` as a project environment variable (all
+   targets). It is read at build time (injected into the client bundle) and
+   at runtime (the Google Places / Street View endpoints).
+3. Wait for the build (`npm ci --ignore-scripts` + `vite build`).
+
+`node scripts/test-vercel-adapter.mjs` exercises the deployed function over
+local HTTP before you ship it.
+
+Serverless caveats (the endpoints already degrade honestly where they hit
+them):
+
+- **Per-instance state.** In-memory caches, the AISStream websocket, and the
+  disk caches live on the function instance and reset on cold start; a fresh
+  instance refetches/refills on demand.
+- **Long-running responses.** Fluid Compute (on by default on new Vercel
+  projects) allows up to 300 s, which covers the slowest proxies; on a plan
+  without it, very slow upstreams time out and the layer reports the error.
+- **Voice control.** The OpenAI Realtime endpoints are served by the dev /
+  preview server and Render; on Vercel they are not mounted (they require
+  `OPENAI_API_KEY` and the frozen tool-schema baseline lives in
+  `vite.config.js`, which the function deliberately does not import).
 
 ## One-click: Render (free tier)
 
@@ -71,5 +118,5 @@ PORT=8080 npm start
 ```
 
 Railway and Fly.io need only that plus the same environment variables.
-Vercel and Cloudflare Pages do **not** fit without porting the middleware to
-their serverless function formats.
+Vercel is supported via the serverless-function port above; Cloudflare Pages
+would need the same porting work.
