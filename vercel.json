@@ -3,11 +3,6 @@
   "installCommand": "npm ci --no-audit --no-fund --ignore-scripts",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "functions": {
-    "api/[...gev].mjs": {
-      "runtime": "nodejs22.x"
-    }
-  },
   "rewrites": [
     {
       "source": "/((?!api/).*)",

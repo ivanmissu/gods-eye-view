@@ -25,8 +25,8 @@ Vercel serverless functions without a long-lived Node process:
 - `src/server/embedded-data.mjs` — shipped data files (CCTV registries,
   compiled datasets, CelesTrak TLE seeds) embedded in the bundle, regenerated
   with `node scripts/embed-server-data.mjs` when they change.
-- `vercel.json` — Node 22 function runtime, install/build commands, SPA
-  rewrites.
+- `vercel.json` — install/build commands and SPA rewrites (the API
+  function uses Vercel's default Node runtime).
 
 Deploy:
 
